@@ -27,7 +27,8 @@ fn windows_resources() {
     res.set_icon(ico.to_str().unwrap())
         .set_manifest_file("assets/downcop.manifest")
         .set("FileDescription", "downcop - Download Cop")
-        .set("ProductName", "downcop (다운로드단속반)");
+        .set("ProductName", "downcop (다운로드단속반)")
+        .set("LegalCopyright", "Copyright (c) 2026 zanggu4. MIT License");
     res.compile().expect("failed to embed Windows resources");
 }
 

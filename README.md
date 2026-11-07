@@ -91,7 +91,11 @@ src/config.rs, src/i18n.rs  설정 저장, 한/영 문자열
 ui/main.slint               메인 창 (Fluent 스타일)
 ```
 
-## 서드파티
+## 라이선스
+
+downcop은 [MIT 라이선스](LICENSE)로 배포됩니다.
+
+### 서드파티
 
 - **WinDivert**: LGPLv3 / GPLv2 듀얼 라이선스. downcop은 `WinDivert.dll`을 실행 시점에 동적으로 불러오므로 사용자가 DLL을 교체할 수 있습니다. 배포 zip에 `WinDivert-LICENSE.txt`를 포함합니다.
 - **Slint**: Royalty-free License로 사용합니다. Made with [Slint](https://slint.dev).

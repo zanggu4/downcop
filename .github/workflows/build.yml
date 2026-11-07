@@ -62,7 +62,7 @@ jobs:
           Copy-Item target\release\downcop.exe $out\
           Copy-Item "$env:WINDIVERT_DIR\x64\WinDivert.dll","$env:WINDIVERT_DIR\x64\WinDivert64.sys" $out\
           Copy-Item "$env:WINDIVERT_DIR\LICENSE" "$out\WinDivert-LICENSE.txt"
-          Copy-Item README.md $out\
+          Copy-Item README.md,LICENSE $out\
           Compress-Archive -Path "$out\*" -DestinationPath dist\downcop-windows-x64.zip -Force
           Get-ChildItem $out | Format-Table Name, Length
 

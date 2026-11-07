@@ -1,8 +1,9 @@
 [package]
 name = "downcop"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 rust-version = "1.88"
+license = "MIT"
 description = "다운로드단속반 - one-click system-wide download/upload blocker and speed limiter for Windows"
 repository = "https://github.com/zanggu4/downcop"
 build = "build.rs"
