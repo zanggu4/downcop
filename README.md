@@ -74,7 +74,7 @@ cargo test
 ```
 
 Windows가 아닌 OS에서 `cargo run`을 하면 **미리보기 모드**로 실행됩니다. UI만 동작하고 트래픽은 제어하지 않습니다.
-CI(`.github/workflows/build.yml`)는 Windows에서 fmt, clippy, test, release 빌드를 돌린 뒤 WinDivert를 동봉한 zip을 만들고, `v*` 태그를 push하면 Release에 첨부합니다.
+CI(`.github/workflows/build.yml`)는 Windows에서 fmt, clippy, test, release 빌드를 돌린 뒤 WinDivert를 동봉한 zip을 만들고, `v*` 태그를 push하거나 Actions에서 **build** 워크플로를 수동 실행하며 `release_tag`(예: `v0.0.2`)를 입력하면 그 태그로 GitHub Release를 만들어 zip을 첨부합니다.
 
 ### 구조
 
