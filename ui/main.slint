@@ -1,0 +1,359 @@
+// downcop (다운로드단속반) main window.
+import { Switch, CheckBox, LineEdit, ComboBox, Button, Palette } from "std-widgets.slint";
+
+export struct Strings {
+    app-title: string,
+    download: string,
+    upload: string,
+    block: string,
+    limit: string,
+    block-all: string,
+    unblock-all: string,
+    settings: string,
+    lan-exclude: string,
+    autostart: string,
+    apply-on-launch: string,
+    language: string,
+    history: string,
+    close-hint: string,
+}
+
+export global I18n {
+    in property <Strings> s;
+}
+
+component Card inherits Rectangle {
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: Palette.border;
+    background: Palette.alternate-background;
+}
+
+component DirectionCard inherits Card {
+    in property <string> title;
+    in property <string> speed;
+    in property <color> accent;
+    in-out property <bool> blocked;
+    in-out property <bool> limit-on;
+    in-out property <string> limit-text;
+    in-out property <int> unit-index;
+    callback changed();
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 8px;
+
+        HorizontalLayout {
+            spacing: 8px;
+            Rectangle {
+                width: 4px;
+                border-radius: 2px;
+                background: root.accent;
+            }
+            Text {
+                text: root.title;
+                font-size: 15px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Text {
+                text: root.speed;
+                font-size: 15px;
+                font-weight: 600;
+                color: root.accent;
+                vertical-alignment: center;
+            }
+        }
+
+        HorizontalLayout {
+            alignment: start;
+            Switch {
+                text: I18n.s.block;
+                checked <=> root.blocked;
+                toggled => { root.changed(); }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            CheckBox {
+                text: I18n.s.limit;
+                enabled: !root.blocked;
+                checked <=> root.limit-on;
+                toggled => { root.changed(); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            LineEdit {
+                width: 88px;
+                input-type: decimal;
+                horizontal-alignment: right;
+                enabled: root.limit-on && !root.blocked;
+                text <=> root.limit-text;
+                edited(_) => { root.changed(); }
+            }
+            ComboBox {
+                width: 92px;
+                model: ["KB/s", "MB/s"];
+                enabled: root.limit-on && !root.blocked;
+                current-index <=> root.unit-index;
+                selected(_) => { root.changed(); }
+            }
+        }
+    }
+}
+
+component Graph inherits Card {
+    in property <[float]> down;
+    in property <[float]> up;
+    in property <string> label;
+    in property <string> peak;
+    in property <color> down-color;
+    in property <color> up-color;
+    height: 84px;
+    clip: true;
+
+    Text {
+        x: 10px;
+        y: 6px;
+        text: root.label;
+        font-size: 11px;
+        color: Palette.alternate-foreground.with-alpha(0.7);
+    }
+    Text {
+        x: parent.width - self.width - 10px;
+        y: 6px;
+        text: root.peak;
+        font-size: 11px;
+        color: Palette.alternate-foreground.with-alpha(0.7);
+    }
+
+    area := Rectangle {
+        x: 10px;
+        y: 24px;
+        width: parent.width - 20px;
+        height: parent.height - 32px;
+
+        for v[i] in root.down: Rectangle {
+            x: i * area.width / 60;
+            width: area.width / 60 - 1px;
+            height: v * area.height;
+            y: area.height - self.height;
+            border-radius: 1px;
+            background: root.down-color.with-alpha(0.55);
+        }
+        for v[i] in root.up: Rectangle {
+            x: i * area.width / 60 + area.width / 240;
+            width: area.width / 120;
+            height: v * area.height;
+            y: area.height - self.height;
+            border-radius: 1px;
+            background: root.up-color;
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    // --- traffic state ---
+    in-out property <bool> dl-blocked;
+    in-out property <bool> dl-limit-on;
+    in-out property <string> dl-limit-text: "1024";
+    in-out property <int> dl-unit;
+    in-out property <bool> ul-blocked;
+    in-out property <bool> ul-limit-on;
+    in-out property <string> ul-limit-text: "512";
+    in-out property <int> ul-unit;
+
+    // --- settings ---
+    in-out property <bool> lan-exclude;
+    in-out property <bool> autostart;
+    in-out property <bool> apply-on-launch;
+    in-out property <int> language-index;
+
+    // --- live display ---
+    in property <string> dl-speed: "0 B/s";
+    in property <string> ul-speed: "0 B/s";
+    in property <[float]> dl-history;
+    in property <[float]> ul-history;
+    in property <string> graph-peak;
+    in property <string> status-text;
+    in property <int> severity; // 0 normal, 1 limited, 2 blocked, 3 error
+    in property <string> error-text;
+    in property <string> notice-text;
+    in property <bool> has-tray;
+    in property <string> font-family;
+    in property <image> app-icon;
+
+    callback state-changed();
+    callback toggle-all();
+    callback autostart-toggled();
+    callback language-selected();
+
+    property <bool> all-blocked: root.dl-blocked && root.ul-blocked;
+    property <color> down-color: #3b82f6;
+    property <color> up-color: #a855f7;
+    property <color> status-color: root.severity == 0 ? #16a34a
+        : root.severity == 1 ? #f59e0b
+        : root.severity == 2 ? #dc2626
+        : #6b7280;
+
+    title: I18n.s.app-title;
+    icon: root.app-icon;
+    default-font-family: root.font-family;
+    preferred-width: 380px;
+    min-width: 340px;
+    background: Palette.background;
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 10px;
+
+        // header
+        HorizontalLayout {
+            spacing: 8px;
+            Image {
+                source: root.app-icon;
+                width: 26px;
+                height: 26px;
+            }
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: I18n.s.app-title;
+                    font-size: 17px;
+                    font-weight: 800;
+                }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Text {
+                text: "downcop";
+                font-size: 11px;
+                vertical-alignment: center;
+                color: Palette.foreground.with-alpha(0.45);
+            }
+        }
+
+        // status banner (always reflects what the engine actually enforces)
+        Rectangle {
+            border-radius: 8px;
+            background: root.status-color.with-alpha(0.13);
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                padding-top: 7px;
+                padding-bottom: 7px;
+                spacing: 8px;
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 8px;
+                        height: 8px;
+                        border-radius: 4px;
+                        background: root.status-color;
+                    }
+                }
+                Text {
+                    text: root.status-text;
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: root.status-color;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+            }
+        }
+
+        DirectionCard {
+            title: "↓ " + I18n.s.download;
+            speed: root.dl-speed;
+            accent: root.down-color;
+            blocked <=> root.dl-blocked;
+            limit-on <=> root.dl-limit-on;
+            limit-text <=> root.dl-limit-text;
+            unit-index <=> root.dl-unit;
+            changed => { root.state-changed(); }
+        }
+
+        DirectionCard {
+            title: "↑ " + I18n.s.upload;
+            speed: root.ul-speed;
+            accent: root.up-color;
+            blocked <=> root.ul-blocked;
+            limit-on <=> root.ul-limit-on;
+            limit-text <=> root.ul-limit-text;
+            unit-index <=> root.ul-unit;
+            changed => { root.state-changed(); }
+        }
+
+        Graph {
+            down: root.dl-history;
+            up: root.ul-history;
+            label: I18n.s.history;
+            peak: root.graph-peak;
+            down-color: root.down-color;
+            up-color: root.up-color;
+        }
+
+        Button {
+            text: root.all-blocked ? I18n.s.unblock-all : I18n.s.block-all;
+            primary: true;
+            height: 40px;
+            clicked => { root.toggle-all(); }
+        }
+
+        if root.error-text != "": Text {
+            text: root.error-text;
+            color: #dc2626;
+            wrap: word-wrap;
+            font-size: 12px;
+        }
+
+        Card {
+            VerticalLayout {
+                padding: 12px;
+                spacing: 4px;
+                Text {
+                    text: I18n.s.settings;
+                    font-weight: 700;
+                }
+                CheckBox {
+                    text: I18n.s.lan-exclude;
+                    checked <=> root.lan-exclude;
+                    toggled => { root.state-changed(); }
+                }
+                CheckBox {
+                    text: I18n.s.autostart;
+                    checked <=> root.autostart;
+                    toggled => { root.autostart-toggled(); }
+                }
+                CheckBox {
+                    text: I18n.s.apply-on-launch;
+                    checked <=> root.apply-on-launch;
+                    toggled => { root.state-changed(); }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text {
+                        text: I18n.s.language;
+                        vertical-alignment: center;
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    ComboBox {
+                        width: 120px;
+                        model: ["한국어", "English"];
+                        current-index <=> root.language-index;
+                        selected(_) => { root.language-selected(); }
+                    }
+                }
+            }
+        }
+
+        if root.notice-text != "" || root.has-tray: Text {
+            text: root.notice-text != "" ? root.notice-text : I18n.s.close-hint;
+            font-size: 11px;
+            horizontal-alignment: center;
+            color: Palette.foreground.with-alpha(0.55);
+        }
+    }
+}

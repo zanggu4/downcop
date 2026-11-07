@@ -1,0 +1,78 @@
+name: build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach the zip to GitHub Releases on tag pushes
+
+env:
+  CARGO_TERM_COLOR: always
+  WINDIVERT_VERSION: "2.2.2"
+  WINDIVERT_SHA256: "63CB41763BB4B20F600B6DE04E991A9C2BE73279E317D4D82F237B150C5F3F15"
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Download WinDivert
+        shell: pwsh
+        run: |
+          $url = "https://github.com/basil00/WinDivert/releases/download/v$env:WINDIVERT_VERSION/WinDivert-$env:WINDIVERT_VERSION-A.zip"
+          Invoke-WebRequest $url -OutFile windivert.zip
+          $hash = (Get-FileHash windivert.zip -Algorithm SHA256).Hash
+          if ($hash -ne $env:WINDIVERT_SHA256) { throw "WinDivert checksum mismatch: $hash" }
+          Expand-Archive windivert.zip -DestinationPath windivert
+          "WINDIVERT_DIR=$pwd\windivert\WinDivert-$env:WINDIVERT_VERSION-A" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        shell: pwsh
+        run: |
+          cargo test --no-run
+          # let the filter tests use the real WinDivert filter compiler/evaluator
+          Copy-Item "$env:WINDIVERT_DIR\x64\WinDivert.dll","$env:WINDIVERT_DIR\x64\WinDivert64.sys" target\debug\deps\
+          cargo test
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = "dist\downcop"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item target\release\downcop.exe $out\
+          Copy-Item "$env:WINDIVERT_DIR\x64\WinDivert.dll","$env:WINDIVERT_DIR\x64\WinDivert64.sys" $out\
+          Copy-Item "$env:WINDIVERT_DIR\LICENSE" "$out\WinDivert-LICENSE.txt"
+          Copy-Item README.md $out\
+          Compress-Archive -Path "$out\*" -DestinationPath dist\downcop-windows-x64.zip -Force
+          Get-ChildItem $out | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: downcop-windows-x64
+          path: dist/downcop/
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/downcop-windows-x64.zip
